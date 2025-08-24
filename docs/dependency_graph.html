@@ -1,0 +1,2958 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dependency Graph Visualizer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2em;
+        }
+        
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.8;
+        }
+        
+        .main-content {
+            display: flex;
+            min-height: 800px;
+        }
+        
+        .sidebar {
+            width: 300px;
+            background-color: #ecf0f1;
+            border-right: 1px solid #bdc3c7;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        
+        .graph-area {
+            flex: 1;
+            position: relative;
+            background-color: white;
+        }
+        
+        #graph-container {
+            width: 100%;
+            height: 800px;
+            overflow: hidden;
+        }
+        
+        #error {
+            color: #e74c3c;
+            padding: 20px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .controls {
+            margin-bottom: 20px;
+        }
+        
+        .controls h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 5px;
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #34495e;
+        }
+        
+        .control-group button {
+            width: 100%;
+            padding: 10px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .control-group button:hover {
+            background-color: #2980b9;
+        }
+        
+        #info {
+            background-color: white;
+            border: 1px solid #bdc3c7;
+            border-radius: 4px;
+            padding: 15px;
+        }
+        
+        #info h3 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        
+        #info p {
+            margin: 8px 0;
+            line-height: 1.4;
+        }
+        
+        .instructions {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e8f4fd;
+            border: 1px solid #3498db;
+            border-radius: 4px;
+        }
+        
+        .instructions h4 {
+            margin-top: 0;
+            color: #2980b9;
+        }
+        
+        .instructions ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        
+        .instructions li {
+            margin-bottom: 5px;
+            font-size: 13px;
+        }
+
+        /* SVG styles */
+        .links line {
+            stroke: #999;
+            stroke-opacity: 0.6;
+            stroke-width: 2px;
+        }
+        
+        .nodes circle, .nodes rect {
+            stroke-width: 2px;
+            cursor: pointer;
+        }
+        
+        .nodes text {
+            pointer-events: none;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+        }
+        
+        .legend text {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Mathematical Dependency Graph</h1>
+            <p>Interactive visualization of theorem and definition dependencies with Lean formalization status</p>
+        </div>
+        
+        <div class="main-content">
+            <div class="sidebar">
+                <div class="controls">
+                    <h3>Controls</h3>
+                    
+                    <div class="control-group">
+                        <button id="reset-zoom">Reset Zoom</button>
+                    </div>
+                </div>
+                
+                <div id="info">
+                    <h3>Graph Statistics</h3>
+                    <p>Loading...</p>
+                </div>
+                
+                <div class="instructions">
+                    <h4>Instructions</h4>
+                    <ul>
+                        <li><strong>Drag</strong> nodes to reposition them</li>
+                        <li><strong>Scroll</strong> to zoom in/out</li>
+                        <li><strong>Hover</strong> over nodes for details</li>
+                        <li><strong>Click</strong> "Reset Zoom" to center the graph</li>
+                    </ul>
+                    
+                    <h4>Lean Status</h4>
+                    <ul>
+                        <li><strong>Green:</strong> Full Lean (statement + proof)</li>
+                        <li><strong>Yellow:</strong> Partial Lean (statement only)</li>
+                        <li><strong>Red:</strong> No Lean formalization</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="graph-area">
+                <div id="graph-container"></div>
+                <div id="error" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Embedded data -->
+    <script>
+        window.DEPENDENCY_DATA = [
+        {
+                "id": "NumberField.instCompactSpaceAdicCompletionIntegers",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "NumberField.AdeleRing.locallyCompactSpace",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": [
+                        {
+                                "id": "NumberField.instCompactSpaceAdicCompletionIntegers",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "IsDedekindDomain.HeightOneSpectrum.valuation_comap",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "IsDedekindDomain.HeightOneSpectrum.adicCompletionComapSemialgHom",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": [
+                        {
+                                "id": "IsDedekindDomain.HeightOneSpectrum.valuation_comap",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "IsDedekindDomain.HeightOneSpectrum.valued_adicCompletionComap",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "IsDedekindDomain.HeightOneSpectrum.adicCompletionComapSemialgHom.mapadicCompletionIntegers",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": [
+                        {
+                                "id": "IsDedekindDomain.HeightOneSpectrum.valued_adicCompletionComap",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "IsDedekindDomain.HeightOneSpectrum.adicCompletionComap_isModuleTopology",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": [
+                        {
+                                "id": "IsDedekindDomain.HeightOneSpectrum.adicCompletionComapSemialgHom",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "IsDedekindDomain.HeightOneSpectrum.Extension.finite",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "IsDedekindDomain.HeightOneSpectrum.adicCompletionComapSemialgHom'",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": [
+                        {
+                                "id": "IsDedekindDomain.HeightOneSpectrum.adicCompletionComapSemialgHom",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "IsDedekindDomain.HeightOneSpectrum.adicCompletionComapAlgEquiv",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "IsDedekindDomain.HeightOneSpectrum.prodAdicCompletionComap_isModuleTopology",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": [
+                        {
+                                "id": "IsDedekindDomain.HeightOneSpectrum.adicCompletionComap_isModuleTopology",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "IsDedekindDomain.HeightOneSpectrum.adicCompletionComapContinuousAlgEquiv",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": [
+                        {
+                                "id": "IsDedekindDomain.HeightOneSpectrum.prodAdicCompletionComap_isModuleTopology",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "IsDedekindDomain.HeightOneSpectrum.adicCompletionComapAlgEquiv_integral",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": [
+                        {
+                                "id": "IsDedekindDomain.HeightOneSpectrum.adicCompletionComapAlgEquiv",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "IsDedekindDomain.FiniteAdeleRing.mapSemialgHom",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "IsDedekindDomain.FiniteAdeleRing.baseChangeAlgEquiv",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "IsDedekindDomain.FiniteAdeleRing.baseChangeContinuousAlgEquiv",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": [
+                        {
+                                "id": "IsDedekindDomain.HeightOneSpectrum.adicCompletionComapAlgEquiv_integral",
+                                "type": "theorem"
+                        },
+                        {
+                                "id": "IsDedekindDomain.HeightOneSpectrum.adicCompletionComapAlgEquiv_integral",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "IsDedekindDomain.dvd_norm",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "IsDedekindDomain.AKLB.finitePresentation",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "pi_tensorProduct_of_finitePresentation",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "RestrictedProduct.relabelIso",
+                "type": "definition",
+                "leanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "IsDedekindDomain.FiniteAdeleRing.baseChangeIntegralAlgEquiv",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "NumberField.InfinitePlace.Completion.denseRange_algebraMap_subtype_pi",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "NumberField.InfinitePlace.Completion.finrank_pi_eq_finrank_tensorProduct",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "NumberField.InfinitePlace.Completion.piExtension",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "NumberField.InfinitePlace.Completion.baseChange",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": [
+                        {
+                                "id": "NumberField.InfinitePlace.Completion.piExtension",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "NumberField.InfinitePlace.Completion.baseChange_surjective",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": [
+                        {
+                                "id": "NumberField.InfinitePlace.Completion.denseRange_algebraMap_subtype_pi",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "NumberField.InfinitePlace.Completion.baseChange_injective",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": [
+                        {
+                                "id": "NumberField.InfinitePlace.Completion.finrank_pi_eq_finrank_tensorProduct",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "NumberField.InfinitePlace.Completion.instIsModuleTopologyValEqComapAlgebraMap_fLT",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "NumberField.InfinitePlace.Completion.baseChangeEquiv",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "NumberField.InfinitePlace.Completion.piEquiv",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": [
+                        {
+                                "id": "NumberField.InfinitePlace.Completion.baseChangeEquiv",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "NumberField.InfiniteAdeleRing.piEquiv",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": [
+                        {
+                                "id": "NumberField.InfinitePlace.Completion.piEquiv",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "NumberField.InfiniteAdeleRing.instIsModuleTopology_fLT",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": [
+                        {
+                                "id": "NumberField.InfiniteAdeleRing.piEquiv",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "NumberField.InfiniteAdeleRing.baseChangeEquivAux",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": [
+                        {
+                                "id": "NumberField.InfinitePlace.Completion.baseChangeEquiv",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "NumberField.InfiniteAdeleRing.baseChangeEquiv",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": [
+                        {
+                                "id": "NumberField.InfiniteAdeleRing.baseChangeEquivAux",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "NumberField.AdeleRing.baseChangeEquiv",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "NumberField.AdeleRing.baseChange_moduleTopology",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": [
+                        {
+                                "id": "NumberField.AdeleRing.baseChangeEquiv",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "Rat.AdeleRing.zero_discrete",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "NumberField.AdeleRing.zero_discrete",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "NumberField.AdeleRing.discrete",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": [
+                        {
+                                "id": "NumberField.AdeleRing.zero_discrete",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "Rat.AdeleRing.cocompact",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "NumberField.AdeleRing.cocompact",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/AdeleMiniproject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "Bourbaki52222.stabilizer.toGaloisGroup",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/FrobeniusProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "Bourbaki52222.MulAction.stabilizer_surjective_of_action",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/FrobeniusProject.tex",
+                "dependencies": [
+                        {
+                                "id": "Bourbaki52222.stabilizer.toGaloisGroup",
+                                "type": "definition"
+                        },
+                        {
+                                "id": "Bourbaki52222.stabilizer.toGaloisGroup",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "MulSemiringAction.CharacteristicPolynomial.F",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/FrobeniusProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "MulSemiringAction.CharacteristicPolynomial.F_degree",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/FrobeniusProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MulSemiringAction.CharacteristicPolynomial.F",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "MulSemiringAction.CharacteristicPolynomial.M",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/FrobeniusProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MulSemiringAction.CharacteristicPolynomial.F",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "MulSemiringAction.CharacteristicPolynomial.M_eval_eq_zero",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/FrobeniusProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MulSemiringAction.CharacteristicPolynomial.M",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "MulSemiringAction.CharacteristicPolynomial.M_deg",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/FrobeniusProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MulSemiringAction.CharacteristicPolynomial.M",
+                                "type": "definition"
+                        },
+                        {
+                                "id": "MulSemiringAction.CharacteristicPolynomial.F_degree",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "MulSemiringAction.CharacteristicPolynomial.M_monic",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/FrobeniusProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MulSemiringAction.CharacteristicPolynomial.M",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "MulSemiringAction.CharacteristicPolynomial.isIntegral",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/FrobeniusProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MulSemiringAction.CharacteristicPolynomial.M",
+                                "type": "definition"
+                        },
+                        {
+                                "id": "MulSemiringAction.CharacteristicPolynomial.M_monic",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "MulSemiringAction.CharacteristicPolynomial.Mbar",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/FrobeniusProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MulSemiringAction.CharacteristicPolynomial.M",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "MulSemiringAction.CharacteristicPolynomial.Mbar_deg",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/FrobeniusProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MulSemiringAction.CharacteristicPolynomial.Mbar",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "MulSemiringAction.CharacteristicPolynomial.Mbar_monic",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/FrobeniusProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MulSemiringAction.CharacteristicPolynomial.Mbar",
+                                "type": "definition"
+                        },
+                        {
+                                "id": "MulSemiringAction.CharacteristicPolynomial.M_monic",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "MulSemiringAction.CharacteristicPolynomial.Mbar_eval_eq_zero",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/FrobeniusProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MulSemiringAction.CharacteristicPolynomial.Mbar",
+                                "type": "definition"
+                        },
+                        {
+                                "id": "MulSemiringAction.CharacteristicPolynomial.M_eval_eq_zero",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "MulSemiringAction.reduction_isIntegral",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/FrobeniusProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MulSemiringAction.CharacteristicPolynomial.Mbar",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "Bourbaki52222.f_exists",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/FrobeniusProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "NumberField.AdeleRing.DivisionAlgebra.compact_quotient",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/FujisakiProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "NumberField.AdeleRing.DivisionAlgebra.Aux.existsE",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/FujisakiProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "NumberField.AdeleRing.DivisionAlgebra.Aux.E",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/FujisakiProject.tex",
+                "dependencies": [
+                        {
+                                "id": "NumberField.AdeleRing.DivisionAlgebra.Aux.existsE",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "NumberField.AdeleRing.DivisionAlgebra.Aux.X",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/FujisakiProject.tex",
+                "dependencies": [
+                        {
+                                "id": "NumberField.AdeleRing.DivisionAlgebra.Aux.E",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "NumberField.AdeleRing.DivisionAlgebra.Aux.Y",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/FujisakiProject.tex",
+                "dependencies": [
+                        {
+                                "id": "NumberField.AdeleRing.DivisionAlgebra.Aux.X",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "NumberField.AdeleRing.DivisionAlgebra.Aux.X_compact",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/FujisakiProject.tex",
+                "dependencies": [
+                        {
+                                "id": "NumberField.AdeleRing.DivisionAlgebra.Aux.X",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "NumberField.AdeleRing.DivisionAlgebra.Aux.Y_compact",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/FujisakiProject.tex",
+                "dependencies": [
+                        {
+                                "id": "NumberField.AdeleRing.DivisionAlgebra.Aux.Y",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "NumberField.AdeleRing.DivisionAlgebra.Aux.X_meets_kernel",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/FujisakiProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "NumberField.AdeleRing.DivisionAlgebra.Aux.X_meets_kernel'",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/FujisakiProject.tex",
+                "dependencies": [
+                        {
+                                "id": "NumberField.AdeleRing.DivisionAlgebra.Aux.X",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "NumberField.AdeleRing.DivisionAlgebra.Aux.T",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/FujisakiProject.tex",
+                "dependencies": [
+                        {
+                                "id": "NumberField.AdeleRing.DivisionAlgebra.Aux.Y",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "NumberField.AdeleRing.DivisionAlgebra.Aux.T_finite",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/FujisakiProject.tex",
+                "dependencies": [
+                        {
+                                "id": "NumberField.AdeleRing.DivisionAlgebra.Aux.T",
+                                "type": "definition"
+                        },
+                        {
+                                "id": "NumberField.AdeleRing.DivisionAlgebra.Aux.Y_compact",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "NumberField.AdeleRing.DivisionAlgebra.Aux.C",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/FujisakiProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "NumberField.AdeleRing.DivisionAlgebra.Aux.C_compact",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/FujisakiProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "NumberField.AdeleRing.DivisionAlgebra.Aux.antidiag_mem_C",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/FujisakiProject.tex",
+                "dependencies": [
+                        {
+                                "id": "NumberField.AdeleRing.DivisionAlgebra.Aux.C",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "NumberField.FiniteAdeleRing.DivisionAlgebra.units_cocompact",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/FujisakiProject.tex",
+                "dependencies": [
+                        {
+                                "id": "NumberField.AdeleRing.DivisionAlgebra.compact_quotient",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "NumberField.FiniteAdeleRing.DivisionAlgebra.finiteDoubleCoset",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/FujisakiProject.tex",
+                "dependencies": [
+                        {
+                                "id": "NumberField.FiniteAdeleRing.DivisionAlgebra.units_cocompact",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "MeasureTheory.addEquivAddHaarChar",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "MeasureTheory.addEquivAddHaarChar_eq",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MeasureTheory.addEquivAddHaarChar",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "MeasureTheory.addEquivAddHaarChar_map",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MeasureTheory.addEquivAddHaarChar_eq",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "MeasureTheory.addEquivAddHaarChar_smul_preimage",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MeasureTheory.addEquivAddHaarChar",
+                                "type": "definition"
+                        },
+                        {
+                                "id": "MeasureTheory.addEquivAddHaarChar_map",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "MeasureTheory.addEquivAddHaarChar_smul_integral_map",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MeasureTheory.addEquivAddHaarChar",
+                                "type": "definition"
+                        },
+                        {
+                                "id": "MeasureTheory.addEquivAddHaarChar_map",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "MeasureTheory.addEquivAddHaarChar_smul_integral_comap",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "MeasureTheory.addEquivAddHaarChar_refl",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MeasureTheory.addEquivAddHaarChar",
+                                "type": "definition"
+                        },
+                        {
+                                "id": "MeasureTheory.addEquivAddHaarChar_eq",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "MeasureTheory.addEquivAddHaarChar_trans",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MeasureTheory.addEquivAddHaarChar",
+                                "type": "definition"
+                        },
+                        {
+                                "id": "MeasureTheory.addEquivAddHaarChar_smul_preimage",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "MeasureTheory.ringHaarChar",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "MeasureTheory.ringHaarChar_mul_integral",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MeasureTheory.ringHaarChar",
+                                "type": "definition"
+                        },
+                        {
+                                "id": "MeasureTheory.addEquivAddHaarChar_smul_integral_map",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "MeasureTheory.ringHaarChar_mul_volume",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MeasureTheory.addEquivAddHaarChar_smul_preimage",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "MeasureTheory.ringHaarChar_real",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MeasureTheory.ringHaarChar_mul_volume",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "MeasureTheory.ringHaarChar_complex",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MeasureTheory.ringHaarChar_mul_volume",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "MeasureTheory.ringHaarChar_padic",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MeasureTheory.ringHaarChar_mul_volume",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "MeasureTheory.addEquivAddHaarChar_eq_ringHaarChar_det",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MeasureTheory.ringHaarChar",
+                                "type": "definition"
+                        },
+                        {
+                                "id": "MeasureTheory.addEquivAddHaarChar",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "IsSimpleRing.mulLeft_det_eq_mulRight_det",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "MeasureTheory.addEquivAddHaarChar_prodCongr",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "MeasureTheory.addEquivAddHaarChar_piCongrRight",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MeasureTheory.addEquivAddHaarChar_prodCongr",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "MeasureTheory.ringHaarChar_prod",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MeasureTheory.addEquivAddHaarChar_prodCongr",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "MeasureTheory.ringHaarChar_pi",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MeasureTheory.addEquivAddHaarChar_piCongrRight",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "Topology.IsOpenEmbedding.isHaarMeasure_comap",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "Topology.IsOpenEmbedding.regular_comap",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "MeasureTheory.mulEquivHaarChar_eq_one_of_compactSpace",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "MeasureTheory.addEquivAddHaarChar_eq_addEquivAddHaarChar_of_isOpenEmbedding",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "Continuous.restrictedProduct_congrRight",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "MeasureTheory.addEquivAddHaarChar_restrictedProductCongrRight",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "IsModuleTopology.Module.continuous_bilinear_of_finite",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "NumberField.AdeleRing.isCentralSimple_addHaarScalarFactor_left_mul_eq_right_mul",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "MeasureTheory.ringHaarChar_adeles_rat",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "MeasureTheory.ringHaarChar_adeles_units_rat_eq_one",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": [
+                        {
+                                "id": "MeasureTheory.ringHaarChar_adeles_rat",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "MeasureTheory.addHaarScalarFactor_tensor_adeles_eq_one",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/HaarCharacterProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "AbstractHeckeOperator.HeckeOperator_toFun",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/HeckeOperatorProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "AbstractHeckeOperator.HeckeOperator",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HeckeOperatorProject.tex",
+                "dependencies": [
+                        {
+                                "id": "AbstractHeckeOperator.HeckeOperator_toFun",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "AbstractHeckeOperator.comm",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HeckeOperatorProject.tex",
+                "dependencies": [
+                        {
+                                "id": "AbstractHeckeOperator.HeckeOperator",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "QuotientGroup.mk_image_finite_of_compact_of_open",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HeckeOperatorProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "Homeomorph.restrictedProductProd",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/HeckeOperatorProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "Submonoid.units_isOpen",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/HeckeOperatorProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "Submonoid.units_isCompact",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/HeckeOperatorProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "ContinuousMulEquiv.piUnits",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HeckeOperatorProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "ContinuousMulEquiv.restrictedProductUnits",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/HeckeOperatorProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "nolean-compactopen",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/HeckeOperatorProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "nolean-compactopen-matrix",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/HeckeOperatorProject.tex",
+                "dependencies": [
+                        {
+                                "id": "nolean-compactopen",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "nolean-compactopen-GL2",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/HeckeOperatorProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "nolean-compactopen-U1p",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/HeckeOperatorProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "nolean-U1-coset-decomposition",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/HeckeOperatorProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "nolean-GL2-finite-adeles",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/HeckeOperatorProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "nolean-hecke-algebra-commutative-noetherian",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/HeckeOperatorProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "nolean-product-of-U-alpha",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/HeckeOperatorProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "TotallyDefiniteQuaternionAlgebra.WeightTwoAutomorphicForm",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/QuaternionAlgebraProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "TotallyDefiniteQuaternionAlgebra.WeightTwoAutomorphicForm.addCommGroup",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/QuaternionAlgebraProject.tex",
+                "dependencies": [
+                        {
+                                "id": "TotallyDefiniteQuaternionAlgebra.WeightTwoAutomorphicForm",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "TotallyDefiniteQuaternionAlgebra.WeightTwoAutomorphicForm.module",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/QuaternionAlgebraProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "TotallyDefiniteQuaternionAlgebra.WeightTwoAutomorphicForm.distribMulAction",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/QuaternionAlgebraProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "TotallyDefiniteQuaternionAlgebra.WeightTwoAutomorphicFormOfLevel",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/QuaternionAlgebraProject.tex",
+                "dependencies": []
+        },
+        {
+                "id": "TotallyDefiniteQuaternionAlgebra.WeightTwoAutomorphicForm.finiteDimensional",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/QuaternionAlgebraProject.tex",
+                "dependencies": [
+                        {
+                                "id": "TotallyDefiniteQuaternionAlgebra.WeightTwoAutomorphicForm.module",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "FermatLastTheorem.of_odd_primes",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch02reductions.tex",
+                "dependencies": []
+        },
+        {
+                "id": "fermatLastTheoremThree",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch02reductions.tex",
+                "dependencies": []
+        },
+        {
+                "id": "FLT.FreyPackage",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch02reductions.tex",
+                "dependencies": []
+        },
+        {
+                "id": "FLT.FreyPackage.of_not_FermatLastTheorem_p_ge_5",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch02reductions.tex",
+                "dependencies": [
+                        {
+                                "id": "FLT.FreyPackage",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "FLT.FreyCurve",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch02reductions.tex",
+                "dependencies": [
+                        {
+                                "id": "FLT.FreyPackage",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "FLT.Mazur_Frey",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch02reductions.tex",
+                "dependencies": [
+                        {
+                                "id": "FLT.FreyCurve",
+                                "type": "definition"
+                        },
+                        {
+                                "id": "Frey_curve_irreducible",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "FLT.Wiles_Frey",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch02reductions.tex",
+                "dependencies": [
+                        {
+                                "id": "FLT.FreyCurve",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "WeierstrassCurve.n_torsion_card",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch03frey.tex",
+                "dependencies": []
+        },
+        {
+                "id": "group_theory_lemma",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch03frey.tex",
+                "dependencies": []
+        },
+        {
+                "id": "Elliptic_curve_det_n_torsion",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch03frey.tex",
+                "dependencies": []
+        },
+        {
+                "id": "EllipticCurve.GoodReduction",
+                "type": "definition",
+                "leanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch03frey.tex",
+                "dependencies": []
+        },
+        {
+                "id": "Frey_curve_good_reduction",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch03frey.tex",
+                "dependencies": []
+        },
+        {
+                "id": "finite_flat_group_scheme",
+                "type": "definition",
+                "leanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch03frey.tex",
+                "dependencies": []
+        },
+        {
+                "id": "good_reduction_implies_unramified",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch03frey.tex",
+                "dependencies": []
+        },
+        {
+                "id": "good_reduction_implies_flat",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch03frey.tex",
+                "dependencies": [
+                        {
+                                "id": "finite_flat_group_scheme",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "EllipticCurve.MultiplicativeReduction",
+                "type": "definition",
+                "leanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch03frey.tex",
+                "dependencies": []
+        },
+        {
+                "id": "Frey_curve_mult_reduction",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch03frey.tex",
+                "dependencies": [
+                        {
+                                "id": "EllipticCurve.MultiplicativeReduction",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "Frey_curve_mult_reduction_at_two",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch03frey.tex",
+                "dependencies": [
+                        {
+                                "id": "EllipticCurve.MultiplicativeReduction",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "Tate_curve_uniformisation",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch03frey.tex",
+                "dependencies": [
+                        {
+                                "id": "EllipticCurve.MultiplicativeReduction",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "hardly_ramified",
+                "type": "definition",
+                "leanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch03frey.tex",
+                "dependencies": []
+        },
+        {
+                "id": "Frey_curve_good",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch03frey.tex",
+                "dependencies": []
+        },
+        {
+                "id": "Frey_curve_j",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch03frey.tex",
+                "dependencies": [
+                        {
+                                "id": "FLT.FreyCurve",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "Frey_curve_mod_ell_rep_at_ell",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch03frey.tex",
+                "dependencies": [
+                        {
+                                "id": "finite_flat_group_scheme",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "frey_curve_hardly_ramified",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch03frey.tex",
+                "dependencies": [
+                        {
+                                "id": "hardly_ramified",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "mazur",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch03frey.tex",
+                "dependencies": []
+        },
+        {
+                "id": "Frey_characters_are_unramified",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch03frey.tex",
+                "dependencies": []
+        },
+        {
+                "id": "Frey_characters_at_ell",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch03frey.tex",
+                "dependencies": []
+        },
+        {
+                "id": "Frey_curve_reducible_structure",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch03frey.tex",
+                "dependencies": []
+        },
+        {
+                "id": "Frey_curve_trivial_submodule",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch03frey.tex",
+                "dependencies": []
+        },
+        {
+                "id": "Elliptic_curve_quotient_by_finite_subgroup",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch03frey.tex",
+                "dependencies": []
+        },
+        {
+                "id": "Frey_curve_irreducible",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch03frey.tex",
+                "dependencies": []
+        },
+        {
+                "id": "modularity_lifting_theorem",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch04overview.tex",
+                "dependencies": []
+        },
+        {
+                "id": "ZHat",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": []
+        },
+        {
+                "id": "ZHat.commRing",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": [
+                        {
+                                "id": "ZHat",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "ZHat.nontrivial",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": [
+                        {
+                                "id": "ZHat.commRing",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "ZHat.charZero",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": []
+        },
+        {
+                "id": "ZHat.e",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": [
+                        {
+                                "id": "ZHat.commRing",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "ZHat.e_def",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": [
+                        {
+                                "id": "ZHat.e",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "ZHat.e_not_in_Int",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": [
+                        {
+                                "id": "ZHat.e",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "ZHat.torsionfree",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": []
+        },
+        {
+                "id": "ZHat.multiples",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": [
+                        {
+                                "id": "ZHat.commRing",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "QHat",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": [
+                        {
+                                "id": "ZHat",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "QHat.canonicalForm",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": []
+        },
+        {
+                "id": "QHat.IsCoprime",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": [
+                        {
+                                "id": "ZHat.commRing",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "QHat.lowestTerms",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": [
+                        {
+                                "id": "QHat.IsCoprime",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "QHat.injective_rat",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": []
+        },
+        {
+                "id": "QHat.injective_zHat",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": []
+        },
+        {
+                "id": "QHat.rat_meet_zHat",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": [
+                        {
+                                "id": "QHat.lowestTerms",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "QHat.rat_join_zHat",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": [
+                        {
+                                "id": "QHat.canonicalForm",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "Qhat.unitsrat_meet_unitszHat",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": []
+        },
+        {
+                "id": "QHat.unitsrat_join_unitszHat",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": []
+        },
+        {
+                "id": "Hurwitz",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": []
+        },
+        {
+                "id": "Hurwitz.ring",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": [
+                        {
+                                "id": "Hurwitz",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "Hurwitz.starRing",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": [
+                        {
+                                "id": "Hurwitz.ring",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "Hurwitz.norm",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": [
+                        {
+                                "id": "Hurwitz",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "Hurwitz.norm_eq_mul_conj",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": []
+        },
+        {
+                "id": "Hurwitz.norm_zero",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": [
+                        {
+                                "id": "Hurwitz.norm",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "Hurwitz.norm_one",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": [
+                        {
+                                "id": "Hurwitz.norm",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "Hurwitz.norm_mul",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": [
+                        {
+                                "id": "Hurwitz.norm",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "Hurwitz.norm_nonneg",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": [
+                        {
+                                "id": "Hurwitz.norm",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "Hurwitz.norm_eq_zero",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": [
+                        {
+                                "id": "Hurwitz.norm",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "Hurwitz.exists_near",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": [
+                        {
+                                "id": "Hurwitz.norm",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "Hurwitz.quot_rem",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": []
+        },
+        {
+                "id": "Hurwitz.surjective_pnat_quotient",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": [
+                        {
+                                "id": "Hurwitz",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "Hurwitz.canonicalForm",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": []
+        },
+        {
+                "id": "Hurwitz.completed_units",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch05automorphicformexample.tex",
+                "dependencies": [
+                        {
+                                "id": "Hurwitz.canonicalForm",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "MatrixRing.isCentralSimple",
+                "type": "theorem",
+                "statementLeanDone": true,
+                "proofLeanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch06automorphicrepresentations.tex",
+                "dependencies": []
+        },
+        {
+                "id": "IsCentralSimple.baseChange",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch06automorphicrepresentations.tex",
+                "dependencies": []
+        },
+        {
+                "id": "IsQuaternionAlgebra.exists_quaternionAlgebra_iso",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch06automorphicrepresentations.tex",
+                "dependencies": []
+        },
+        {
+                "id": "AutomorphicForm.GLn.IsSmooth",
+                "type": "definition",
+                "leanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch07exampleGLn.tex",
+                "dependencies": []
+        },
+        {
+                "id": "AutomorphicForm.GLn.IsSlowlyIncreasing",
+                "type": "definition",
+                "leanDone": true,
+                "fileName": "../../blueprint/src/chapter/ch07exampleGLn.tex",
+                "dependencies": []
+        },
+        {
+                "id": "AutomorphicForm.GLn.Weight",
+                "type": "definition",
+                "leanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch07exampleGLn.tex",
+                "dependencies": []
+        },
+        {
+                "id": "instLieAlgebraAction",
+                "type": "definition",
+                "leanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch07exampleGLn.tex",
+                "dependencies": []
+        },
+        {
+                "id": "instComplexLieAlgebraAction",
+                "type": "definition",
+                "leanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch07exampleGLn.tex",
+                "dependencies": [
+                        {
+                                "id": "instLieAlgebraAction",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "instUniversalEnvelopingAlgebraAction",
+                "type": "definition",
+                "leanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch07exampleGLn.tex",
+                "dependencies": [
+                        {
+                                "id": "instComplexLieAlgebraAction",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "instCentreAction",
+                "type": "definition",
+                "leanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch07exampleGLn.tex",
+                "dependencies": [
+                        {
+                                "id": "instUniversalEnvelopingAlgebraAction",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "AutomorphicForm.GLn.AutomorphicFormForGLnOverQ",
+                "type": "definition",
+                "leanDone": false,
+                "fileName": "../../blueprint/src/chapter/ch07exampleGLn.tex",
+                "dependencies": []
+        },
+        {
+                "id": "maximal_unramified_extension_of_p-adic_field",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": []
+        },
+        {
+                "id": "local_Weil_group",
+                "type": "definition",
+                "leanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": [
+                        {
+                                "id": "maximal_unramified_extension_of_p-adic_field",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "local_class_field_theory",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": [
+                        {
+                                "id": "local_Weil_group",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "local_galois_coh_finite",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": []
+        },
+        {
+                "id": "local_galois_coh_dim_two",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": []
+        },
+        {
+                "id": "local_galois_coh_top_degree",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": []
+        },
+        {
+                "id": "local_galois_coh_poincare",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": []
+        },
+        {
+                "id": "local_galois_coh_euler_poincare",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": []
+        },
+        {
+                "id": "global_class_field_theory",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": [
+                        {
+                                "id": "local_class_field_theory",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "Skinner_Wiles_CFT_trick",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": [
+                        {
+                                "id": "global_class_field_theory",
+                                "type": "theorem"
+                        },
+                        {
+                                "id": "global_class_field_theory",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "topology_on_affine_variety_points",
+                "type": "definition",
+                "leanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": []
+        },
+        {
+                "id": "topology_on_affine_variety_computation",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": [
+                        {
+                                "id": "topology_on_affine_variety_points",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "manifold_on_algebraic_variety_points",
+                "type": "definition",
+                "leanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": []
+        },
+        {
+                "id": "manifold_on_algebraic_variety_computation",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": [
+                        {
+                                "id": "manifold_on_algebraic_variety_points",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "connected_reductive_group",
+                "type": "definition",
+                "leanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": []
+        },
+        {
+                "id": "slowly_increasing",
+                "type": "definition",
+                "leanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": []
+        },
+        {
+                "id": "slowly_increasing_well_defined",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": [
+                        {
+                                "id": "slowly_increasing",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "automorphic_form",
+                "type": "definition",
+                "leanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": []
+        },
+        {
+                "id": "cuspidal_automorphic_form",
+                "type": "definition",
+                "leanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": [
+                        {
+                                "id": "automorphic_form",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "automorphic_form_actions",
+                "type": "definition",
+                "leanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": [
+                        {
+                                "id": "automorphic_form",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "cuspidal_automorphic_form_decomposition",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": []
+        },
+        {
+                "id": "cuspidal_automorphic_representation",
+                "type": "definition",
+                "leanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": [
+                        {
+                                "id": "cuspidal_automorphic_form_decomposition",
+                                "type": "theorem"
+                        }
+                ]
+        },
+        {
+                "id": "automorphic_representation",
+                "type": "definition",
+                "leanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": [
+                        {
+                                "id": "automorphic_form_actions",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "automorphic_representation_local_decomposition",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": [
+                        {
+                                "id": "automorphic_representation",
+                                "type": "definition"
+                        }
+                ]
+        },
+        {
+                "id": "compatible_family",
+                "type": "definition",
+                "leanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": []
+        },
+        {
+                "id": "Galois_representation_from_automorphic_representation_on_GL_2_form",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": []
+        },
+        {
+                "id": "Shimura_varieties",
+                "type": "definition",
+                "leanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": []
+        },
+        {
+                "id": "moret-bailly",
+                "type": "theorem",
+                "statementLeanDone": false,
+                "proofLeanDone": false,
+                "fileName": "../../blueprint/src/chapter/chtopbestiary.tex",
+                "dependencies": []
+        }
+];
+    </script>
+
+    <!-- D3.js from CDN -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    
+    <!-- Inline visualization script -->
+    <script>
+        "use strict";
+/**
+ * This file will be loaded in a browser. It will read the graph from a json and
+ * visualize it using d3.js.
+ */
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+class DependencyGraphVisualizer {
+    constructor(containerId) {
+        this.width = 1200;
+        this.height = 800;
+        this.svg = d3.select(`#${containerId}`)
+            .append('svg')
+            .attr('width', this.width)
+            .attr('height', this.height);
+        // Add zoom behavior
+        const zoom = d3.zoom()
+            .scaleExtent([0.1, 4])
+            .on('zoom', (event) => {
+            this.svg.select('g').attr('transform', event.transform);
+        });
+        this.svg.call(zoom);
+        // Create main group for all elements
+        this.svg.append('g');
+    }
+    getNodeColor(node) {
+        if (node.type === 'definition') {
+            return node.leanDone ? '#90EE90' : '#F08080';
+        }
+        else {
+            if (node.statementLeanDone && node.proofLeanDone) {
+                return '#90EE90'; // Light green
+            }
+            else if (node.statementLeanDone || node.proofLeanDone) {
+                return '#FFFFE0'; // Light yellow
+            }
+            else {
+                return '#F08080'; // Light coral
+            }
+        }
+    }
+    getNodeStroke(node) {
+        if (node.type === 'definition') {
+            return node.leanDone ? '#006400' : '#8B0000';
+        }
+        else {
+            if (node.statementLeanDone && node.proofLeanDone) {
+                return '#006400'; // Dark green
+            }
+            else if (node.statementLeanDone || node.proofLeanDone) {
+                return '#FFA500'; // Orange
+            }
+            else {
+                return '#8B0000'; // Dark red
+            }
+        }
+    }
+    getNodeShape(node) {
+        return node.type === 'definition' ? 'rect' : 'circle';
+    }
+    getNodeLabel(node) {
+        let label = node.id;
+        if (node.type === 'theorem') {
+            const statusParts = [];
+            if (node.statementLeanDone)
+                statusParts.push('stmt✓');
+            if (node.proofLeanDone)
+                statusParts.push('proof✓');
+            if (statusParts.length > 0) {
+                label += ` (${statusParts.join(', ')})`;
+            }
+            else {
+                label += ' (no Lean)';
+            }
+        }
+        else {
+            if (node.leanDone) {
+                label += ' (Lean ✓)';
+            }
+            else {
+                label += ' (no Lean)';
+            }
+        }
+        return label;
+    }
+    loadAndVisualize(jsonPath) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const response = yield fetch(jsonPath);
+                const nodes = yield response.json();
+                this.processAndVisualize(nodes);
+            }
+            catch (error) {
+                console.error('Error loading dependency graph:', error);
+                document.getElementById('error').textContent = 'Error loading dependency graph. Make sure dependency_graph.json exists.';
+            }
+        });
+    }
+    loadEmbeddedData(nodes) {
+        this.processAndVisualize(nodes);
+    }
+    processAndVisualize(nodes) {
+        // Convert to D3 format
+        const d3Nodes = nodes.map(node => ({
+            id: node.id,
+            type: node.type,
+            leanDone: node.type === 'definition' ? node.leanDone :
+                (node.statementLeanDone && node.proofLeanDone),
+            statementLeanDone: node.type === 'theorem' ? node.statementLeanDone : undefined,
+            proofLeanDone: node.type === 'theorem' ? node.proofLeanDone : undefined,
+            fileName: node.fileName
+        }));
+        const d3Links = [];
+        nodes.forEach(node => {
+            node.dependencies.forEach((dep) => {
+                d3Links.push({
+                    source: dep.id,
+                    target: node.id
+                });
+            });
+        });
+        this.visualize(d3Nodes, d3Links);
+    }
+    visualize(nodes, links) {
+        const g = this.svg.select('g');
+        // Create force simulation
+        this.simulation = d3.forceSimulation(nodes)
+            .force('link', d3.forceLink(links)
+            .id((d) => d.id)
+            .distance(100))
+            .force('charge', d3.forceManyBody().strength(-300))
+            .force('center', d3.forceCenter(this.width / 2, this.height / 2))
+            .force('collision', d3.forceCollide().radius(30));
+        // Create arrow markers for links
+        this.svg.append('defs').selectAll('marker')
+            .data(['arrow'])
+            .enter().append('marker')
+            .attr('id', 'arrow')
+            .attr('viewBox', '0 -5 10 10')
+            .attr('refX', 25)
+            .attr('refY', 0)
+            .attr('markerWidth', 6)
+            .attr('markerHeight', 6)
+            .attr('orient', 'auto')
+            .append('path')
+            .attr('d', 'M0,-5L10,0L0,5')
+            .attr('fill', '#999');
+        // Create links
+        const link = g.append('g')
+            .attr('class', 'links')
+            .selectAll('line')
+            .data(links)
+            .enter().append('line')
+            .attr('stroke', '#999')
+            .attr('stroke-opacity', 0.6)
+            .attr('stroke-width', 2)
+            .attr('marker-end', 'url(#arrow)');
+        // Create nodes
+        const node = g.append('g')
+            .attr('class', 'nodes')
+            .selectAll('g')
+            .data(nodes)
+            .enter().append('g')
+            .attr('class', 'node')
+            .call(d3.drag()
+            .on('start', (event, d) => this.dragstarted(event, d))
+            .on('drag', (event, d) => this.dragged(event, d))
+            .on('end', (event, d) => this.dragended(event, d)));
+        // Add shapes to nodes
+        node.each(function (d) {
+            const nodeGroup = d3.select(this);
+            if (d.type === 'definition') {
+                nodeGroup.append('rect')
+                    .attr('width', 40)
+                    .attr('height', 40)
+                    .attr('x', -20)
+                    .attr('y', -20)
+                    .attr('rx', 5);
+            }
+            else {
+                nodeGroup.append('circle')
+                    .attr('r', 20);
+            }
+        });
+        // Style the shapes
+        node.select('rect, circle')
+            .attr('fill', (d) => this.getNodeColor(d))
+            .attr('stroke', (d) => this.getNodeStroke(d))
+            .attr('stroke-width', 2);
+        // Add labels
+        node.append('text')
+            .text((d) => d.id)
+            .attr('dy', 35)
+            .attr('text-anchor', 'middle')
+            .attr('font-family', 'Arial, sans-serif')
+            .attr('font-size', '12px')
+            .attr('fill', '#333');
+        // Add tooltips
+        node.append('title')
+            .text((d) => `${d.id} (${d.type})\nFile: ${d.fileName}\n${this.getNodeLabel(d)}`);
+        // Update positions on simulation tick
+        this.simulation.on('tick', () => {
+            link
+                .attr('x1', (d) => d.source.x)
+                .attr('y1', (d) => d.source.y)
+                .attr('x2', (d) => d.target.x)
+                .attr('y2', (d) => d.target.y);
+            node
+                .attr('transform', (d) => `translate(${d.x},${d.y})`);
+        });
+        // Add legend
+        this.addLegend();
+        // Update info panel
+        this.updateInfoPanel(nodes, links);
+    }
+    addLegend() {
+        const legend = this.svg.append('g')
+            .attr('class', 'legend')
+            .attr('transform', 'translate(20, 20)');
+        const legendData = [
+            { type: 'definition', complete: true, label: 'Definition (Lean ✓)' },
+            { type: 'definition', complete: false, label: 'Definition (No Lean)' },
+            { type: 'theorem', complete: true, label: 'Theorem (Statement + Proof)' },
+            { type: 'theorem', complete: 'partial', label: 'Theorem (Statement Only)' },
+            { type: 'theorem', complete: false, label: 'Theorem (No Lean)' }
+        ];
+        legendData.forEach((item, i) => {
+            const legendItem = legend.append('g')
+                .attr('transform', `translate(0, ${i * 25})`);
+            if (item.type === 'definition') {
+                legendItem.append('rect')
+                    .attr('width', 15)
+                    .attr('height', 15)
+                    .attr('x', 0)
+                    .attr('y', 0)
+                    .attr('fill', item.complete ? '#90EE90' : '#F08080')
+                    .attr('stroke', item.complete ? '#006400' : '#8B0000');
+            }
+            else {
+                const color = item.complete === true ? '#90EE90' :
+                    item.complete === 'partial' ? '#FFFFE0' : '#F08080';
+                const stroke = item.complete === true ? '#006400' :
+                    item.complete === 'partial' ? '#FFA500' : '#8B0000';
+                legendItem.append('circle')
+                    .attr('cx', 7.5)
+                    .attr('cy', 7.5)
+                    .attr('r', 7.5)
+                    .attr('fill', color)
+                    .attr('stroke', stroke);
+            }
+            legendItem.append('text')
+                .attr('x', 25)
+                .attr('y', 12)
+                .attr('font-family', 'Arial, sans-serif')
+                .attr('font-size', '12px')
+                .text(item.label);
+        });
+    }
+    updateInfoPanel(nodes, links) {
+        const infoPanel = document.getElementById('info');
+        if (infoPanel) {
+            const totalNodes = nodes.length;
+            const definitionNodes = nodes.filter(n => n.type === 'definition').length;
+            const theoremNodes = nodes.filter(n => n.type === 'theorem').length;
+            const completedNodes = nodes.filter(n => n.leanDone).length;
+            infoPanel.innerHTML = `
+                <h3>Graph Statistics</h3>
+                <p><strong>Total Nodes:</strong> ${totalNodes}</p>
+                <p><strong>Definitions:</strong> ${definitionNodes}</p>
+                <p><strong>Theorems:</strong> ${theoremNodes}</p>
+                <p><strong>Lean Complete:</strong> ${completedNodes} (${Math.round(completedNodes / totalNodes * 100)}%)</p>
+                <p><strong>Dependencies:</strong> ${links.length}</p>
+            `;
+        }
+    }
+    dragstarted(event, d) {
+        if (!event.active)
+            this.simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+    }
+    dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+    }
+    dragended(event, d) {
+        if (!event.active)
+            this.simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+    }
+}
+
+    </script>
+    
+    <script>
+        // Initialize with embedded data
+        document.addEventListener('DOMContentLoaded', () => {
+            const visualizer = new DependencyGraphVisualizer('graph-container');
+            visualizer.loadEmbeddedData(window.DEPENDENCY_DATA);
+        });
+        
+        // Controls
+        document.getElementById('reset-zoom').addEventListener('click', () => {
+            const svg = d3.select('#graph-container svg');
+            svg.transition().duration(750).call(
+                d3.zoom().transform,
+                d3.zoomIdentity
+            );
+        });
+    </script>
+</body>
+</html>
