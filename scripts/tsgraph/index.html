@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dependency Graph Visualizer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2em;
+        }
+        
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.8;
+        }
+        
+        .main-content {
+            display: flex;
+            min-height: 800px;
+        }
+        
+        .sidebar {
+            width: 300px;
+            background-color: #ecf0f1;
+            border-right: 1px solid #bdc3c7;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        
+        .graph-area {
+            flex: 1;
+            position: relative;
+            background-color: white;
+        }
+        
+        #graph-container {
+            width: 100%;
+            height: 800px;
+            overflow: hidden;
+        }
+        
+        #error {
+            color: #e74c3c;
+            padding: 20px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .controls {
+            margin-bottom: 20px;
+        }
+        
+        .controls h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 5px;
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #34495e;
+        }
+        
+        .control-group input, .control-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #bdc3c7;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        
+        .control-group button {
+            width: 100%;
+            padding: 10px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .control-group button:hover {
+            background-color: #2980b9;
+        }
+        
+        #info {
+            background-color: white;
+            border: 1px solid #bdc3c7;
+            border-radius: 4px;
+            padding: 15px;
+        }
+        
+        #info h3 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        
+        #info p {
+            margin: 8px 0;
+            line-height: 1.4;
+        }
+        
+        .legend {
+            margin-top: 20px;
+        }
+        
+        .legend h4 {
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            margin-right: 8px;
+            border: 1px solid #333;
+        }
+        
+        .instructions {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e8f4fd;
+            border: 1px solid #3498db;
+            border-radius: 4px;
+        }
+        
+        .instructions h4 {
+            margin-top: 0;
+            color: #2980b9;
+        }
+        
+        .instructions ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        
+        .instructions li {
+            margin-bottom: 5px;
+            font-size: 13px;
+        }
+
+        /* SVG styles */
+        .links line {
+            stroke: #999;
+            stroke-opacity: 0.6;
+            stroke-width: 2px;
+        }
+        
+        .nodes circle, .nodes rect {
+            stroke-width: 2px;
+            cursor: pointer;
+        }
+        
+        .nodes text {
+            pointer-events: none;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+        }
+        
+        .legend text {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Mathematical Dependency Graph</h1>
+            <p>Interactive visualization of theorem and definition dependencies with Lean formalization status</p>
+        </div>
+        
+        <div class="main-content">
+            <div class="sidebar">
+                <div class="controls">
+                    <h3>Controls</h3>
+                    
+                    <div class="control-group">
+                        <label for="json-file">Load Different JSON File:</label>
+                        <input type="file" id="json-file" accept=".json" />
+                    </div>
+                    
+                    <div class="control-group">
+                        <button id="reset-zoom">Reset Zoom</button>
+                    </div>
+                </div>
+                
+                <div id="info">
+                    <h3>Graph Statistics</h3>
+                    <p>Loading...</p>
+                </div>
+                
+                <div class="instructions">
+                    <h4>Instructions</h4>
+                    <ul>
+                        <li><strong>Drag</strong> nodes to reposition them</li>
+                        <li><strong>Scroll</strong> to zoom in/out</li>
+                        <li><strong>Hover</strong> over nodes for details</li>
+                        <li><strong>Click</strong> "Reset Zoom" to center the graph</li>
+                        <li><strong>Upload</strong> a different JSON file to visualize other graphs (optional)</li>
+                    </ul>
+                    
+                    <h4>Lean Status</h4>
+                    <ul>
+                        <li><strong>Green:</strong> Full Lean (statement + proof)</li>
+                        <li><strong>Yellow:</strong> Partial Lean (statement only)</li>
+                        <li><strong>Red:</strong> No Lean formalization</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="graph-area">
+                <div id="graph-container"></div>
+                <div id="error" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- D3.js from CDN -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    
+    <!-- Our compiled visualization script -->
+    <script src="web.js"></script>
+    
+    <script>
+        // Initialize visualization when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            const visualizer = new DependencyGraphVisualizer('graph-container');
+            // Try to load from embedded data first, fallback to dependency_graph.json
+            if (window.DEPENDENCY_DATA) {
+                visualizer.loadEmbeddedData(window.DEPENDENCY_DATA);
+            } else {
+                visualizer.loadAndVisualize('dependency_graph.json');
+            }
+        });
+        
+        // Additional controls
+        document.getElementById('reset-zoom').addEventListener('click', () => {
+            const svg = d3.select('#graph-container svg');
+            svg.transition().duration(750).call(
+                d3.zoom().transform,
+                d3.zoomIdentity
+            );
+        });
+        
+        document.getElementById('json-file').addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        // Create a temporary URL for the JSON data
+                        const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        
+                        // Clear existing visualization
+                        d3.select('#graph-container').selectAll('*').remove();
+                        
+                        // Create new visualizer with uploaded data
+                        const visualizer = new DependencyGraphVisualizer('graph-container');
+                        visualizer.loadAndVisualize(url);
+                        
+                        // Clean up the temporary URL after a delay
+                        setTimeout(() => URL.revokeObjectURL(url), 1000);
+                    } catch (error) {
+                        document.getElementById('error').style.display = 'block';
+                        document.getElementById('error').textContent = 'Error parsing JSON file: ' + error.message;
+                    }
+                };
+                reader.readAsText(file);
+            }
+        });
+    </script>
+</body>
+</html>
