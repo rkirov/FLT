@@ -23,6 +23,7 @@ interface GraphBaseNode {
     id: string;
     type: 'definition' | 'theorem';
     fileName: string;
+    rawText: string;
     dependencies: { id: string; type: 'definition' | 'theorem' }[];
 }
 
@@ -35,6 +36,7 @@ interface GraphTheoremNode extends GraphBaseNode {
     type: 'theorem';
     statementLeanDone: boolean;
     proofLeanDone: boolean;
+    proofText?: string;
 }
 
 type GraphNode = GraphDefinitionNode | GraphTheoremNode;
@@ -62,6 +64,7 @@ class DependencyGraphVisualizer {
     private width: number;
     private height: number;
     private simulation: any;
+    private originalNodes: GraphNode[] = [];
 
     constructor(containerId: string) {
         this.width = 1200;
@@ -142,6 +145,7 @@ class DependencyGraphVisualizer {
         try {
             const response = await fetch(jsonPath);
             const nodes: GraphNode[] = await response.json();
+            this.originalNodes = nodes;
             this.processAndVisualize(nodes);
         } catch (error) {
             console.error('Error loading dependency graph:', error);
@@ -150,6 +154,7 @@ class DependencyGraphVisualizer {
     }
 
     public loadEmbeddedData(nodes: GraphNode[]) {
+        this.originalNodes = nodes;
         this.processAndVisualize(nodes);
     }
 
@@ -223,6 +228,8 @@ class DependencyGraphVisualizer {
             .data(nodes)
             .enter().append('g')
             .attr('class', 'node')
+            .style('cursor', 'pointer')
+            .on('click', (event: any, d: any) => this.showRawText(d))
             .call(d3.drag()
                 .on('start', (event: any, d: any) => this.dragstarted(event, d))
                 .on('drag', (event: any, d: any) => this.dragged(event, d))
@@ -262,7 +269,7 @@ class DependencyGraphVisualizer {
 
         // Add tooltips
         node.append('title')
-            .text((d: any) => `${d.id} (${d.type})\nFile: ${d.fileName}\n${this.getNodeLabel(d)}`);
+            .text((d: any) => `${d.id} (${d.type})\nFile: ${d.fileName}\n${this.getNodeLabel(d)}\n\nClick to view raw text`);
 
         // Update positions on simulation tick
         this.simulation.on('tick', () => {
@@ -365,5 +372,159 @@ class DependencyGraphVisualizer {
         if (!event.active) this.simulation.alphaTarget(0);
         d.fx = null;
         d.fy = null;
+    }
+
+    private showRawText(d3Node: D3Node) {
+        // Find the original node data
+        const originalNode = this.originalNodes.find(node => node.id === d3Node.id);
+        if (!originalNode) {
+            console.error('Original node data not found for:', d3Node.id);
+            return;
+        }
+
+        // Create or update modal
+        let modal = document.getElementById('raw-text-modal');
+        let overlay = document.getElementById('modal-overlay');
+
+        if (!modal) {
+            // Create overlay
+            overlay = document.createElement('div');
+            overlay.id = 'modal-overlay';
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.5);
+                z-index: 999;
+                display: none;
+            `;
+            overlay.onclick = () => this.hideModal();
+            document.body.appendChild(overlay);
+
+            // Create modal
+            modal = document.createElement('div');
+            modal.id = 'raw-text-modal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: white;
+                border: 2px solid #ccc;
+                border-radius: 8px;
+                padding: 20px;
+                max-width: 80%;
+                max-height: 80%;
+                overflow: auto;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+                z-index: 1000;
+                font-family: 'Arial', sans-serif;
+                display: none;
+            `;
+            document.body.appendChild(modal);
+        }
+
+        // Create content
+        let leanStatus = '';
+        if (originalNode.type === 'definition') {
+            leanStatus = originalNode.leanDone ? 'Lean: Done' : 'Lean: Not done';
+        } else {
+            const theoremNode = originalNode as GraphTheoremNode;
+            if (theoremNode.statementLeanDone && theoremNode.proofLeanDone) {
+                leanStatus = 'Lean: Full (statement + proof)';
+            } else if (theoremNode.statementLeanDone) {
+                leanStatus = 'Lean: Partial (just statement)';
+            } else {
+                leanStatus = 'Lean: No lean (no statement)';
+            }
+        }
+
+        const content = `
+            <div style="position: relative;">
+                <h2 style="margin-top: 0; color: #333;">${originalNode.id}</h2>
+                
+                <div style="margin-bottom: 15px; padding: 10px; background: #f0f0f0; border-radius: 4px;">
+                    <p style="margin: 5px 0;"><strong>Type:</strong> ${originalNode.type}</p>
+                    <p style="margin: 5px 0;"><strong>File:</strong> ${originalNode.fileName}</p>
+                    <p style="margin: 5px 0;"><strong>Status:</strong> ${leanStatus}</p>
+                </div>
+                
+                <h3 style="color: #333; border-bottom: 2px solid #ddd; padding-bottom: 5px;">Raw LaTeX Text</h3>
+                <div id="latex-content" class="tex2jax_process" style="background: #f8f8f8; padding: 15px; border-radius: 4px; font-family: 'Times New Roman', serif; font-size: 16px; line-height: 1.6; border-left: 4px solid #007acc; max-height: 400px; overflow-y: auto;">
+                    ${this.escapeHtml(this.cleanLatexText(originalNode.rawText))}
+                </div>
+                
+                ${originalNode.type === 'theorem' && (originalNode as GraphTheoremNode).proofText ? `
+                    <h3 style="color: #333; border-bottom: 2px solid #ddd; padding-bottom: 5px; margin-top: 20px;">Proof</h3>
+                    <div id="proof-content" class="tex2jax_process" style="background: #f0f8ff; padding: 15px; border-radius: 4px; font-family: 'Times New Roman', serif; font-size: 16px; line-height: 1.6; border-left: 4px solid #28a745; max-height: 400px; overflow-y: auto;">
+                        ${this.escapeHtml(this.cleanLatexText((originalNode as GraphTheoremNode).proofText!))}
+                    </div>
+                ` : ''}
+            </div>
+        `;
+
+        modal.innerHTML = content;
+
+        // Re-add close button
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = '×';
+        closeBtn.style.cssText = `
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+        `;
+        closeBtn.onclick = () => {
+            modal!.style.display = 'none';
+            document.getElementById('modal-overlay')!.style.display = 'none';
+        };
+        modal.appendChild(closeBtn);
+
+        // Show modal
+        modal.style.display = 'block';
+        overlay!.style.display = 'block';
+
+        // Trigger MathJax rendering only on the LaTeX content containers
+        if ((window as any).MathJax) {
+            const latexContainers = modal.querySelectorAll('.tex2jax_process');
+            if (latexContainers.length > 0) {
+                (window as any).MathJax.typesetPromise(Array.from(latexContainers)).catch((err: any) => {
+                    console.error('MathJax rendering error:', err);
+                });
+            }
+        }
+        modal.style.display = 'block';
+        overlay!.style.display = 'block';
+    }
+
+    private hideModal() {
+        const modal = document.getElementById('raw-text-modal');
+        const overlay = document.getElementById('modal-overlay');
+        if (modal) modal.style.display = 'none';
+        if (overlay) overlay.style.display = 'none';
+    }
+
+    private escapeHtml(text: string): string {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    private cleanLatexText(text: string): string {
+        // Remove LaTeX commands like \label{...}, \uses{...}, \leanok, etc.
+        // but keep mathematical content and structure
+        return text
+            .replace(/\\label\{[^}]*\}/g, '')           // Remove \label{...}
+            .replace(/\\uses\{[^}]*\}/g, '')            // Remove \uses{...}
+            .replace(/\\leanok\b/g, '')                 // Remove \leanok
+            .replace(/\\lean\{[^}]*\}/g, '')            // Remove \lean{...}
+            .replace(/\n\s*\n\s*\n/g, '\n\n')          // Clean up extra newlines
+            .trim();                                     // Remove leading/trailing whitespace
     }
 }

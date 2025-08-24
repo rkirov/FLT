@@ -138,6 +138,7 @@ interface CleanBaseNode {
     id: string;
     type: 'definition' | 'theorem';
     fileName: string;
+    rawText: string;
     dependencies: { id: string; type: 'definition' | 'theorem' }[];
 }
 
@@ -150,6 +151,7 @@ interface CleanTheoremNode extends CleanBaseNode {
     type: 'theorem';
     statementLeanDone: boolean;
     proofLeanDone: boolean;
+    proofText?: string; // Optional, only if different from rawText
 }
 
 type CleanNode = CleanDefinitionNode | CleanTheoremNode;
@@ -487,13 +489,13 @@ function generateHTMLWithEmbeddedData(nodes: CleanNode[], outputDir: string) {
 </head>
 <body>
     <div class="container">
-        <div class="header">
+        <div class="header tex2jax_ignore">
             <h1>Mathematical Dependency Graph</h1>
             <p>Interactive visualization of theorem and definition dependencies with Lean formalization status</p>
         </div>
         
         <div class="main-content">
-            <div class="sidebar">
+            <div class="sidebar tex2jax_ignore">
                 <div class="controls">
                     <h3>Controls</h3>
                     
@@ -513,6 +515,7 @@ function generateHTMLWithEmbeddedData(nodes: CleanNode[], outputDir: string) {
                         <li><strong>Drag</strong> nodes to reposition them</li>
                         <li><strong>Scroll</strong> to zoom in/out</li>
                         <li><strong>Hover</strong> over nodes for details</li>
+                        <li><strong>Click</strong> on any node to view raw LaTeX text</li>
                         <li><strong>Click</strong> "Reset Zoom" to center the graph</li>
                     </ul>
                     
@@ -526,8 +529,8 @@ function generateHTMLWithEmbeddedData(nodes: CleanNode[], outputDir: string) {
             </div>
             
             <div class="graph-area">
-                <div id="graph-container"></div>
-                <div id="error" style="display: none;"></div>
+                <div id="graph-container" class="tex2jax_ignore"></div>
+                <div id="error" class="tex2jax_ignore" style="display: none;"></div>
             </div>
         </div>
     </div>
@@ -539,6 +542,28 @@ function generateHTMLWithEmbeddedData(nodes: CleanNode[], outputDir: string) {
 
     <!-- D3.js from CDN -->
     <script src="https://d3js.org/d3.v7.min.js"></script>
+    
+    <!-- MathJax for LaTeX rendering -->
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                processEscapes: true,
+                processEnvironments: true
+            },
+            options: {
+                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'],
+                processHtmlClass: 'tex2jax_process',
+                ignoreHtmlClass: 'tex2jax_ignore'
+            },
+            startup: {
+                typeset: false  // Don't process the entire page on startup
+            }
+        };
+    </script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     
     <!-- Inline visualization script -->
     <script>
@@ -620,7 +645,7 @@ function main() {
     const outputFile = path.join(buildDir, 'dependency_graph.dot');
     fs.writeFileSync(outputFile, dotOutput);
     
-    // Generate and save JSON format (without raw blocks)
+    // Generate and save JSON format (without raw blocks but with raw text)
     const cleanGraph: CleanNode[] = depGraph.map(node => {
         if (node.type === 'definition') {
             return {
@@ -628,6 +653,7 @@ function main() {
                 type: 'definition' as const,
                 leanDone: node.leanDone,
                 fileName: node.rawDefinition.fileName,
+                rawText: node.rawDefinition.rawText,
                 dependencies: node.dependencies.map(dep => ({ id: dep.id, type: dep.type }))
             };
         } else {
@@ -637,6 +663,8 @@ function main() {
                 statementLeanDone: node.statementLeanDone,
                 proofLeanDone: node.proofLeanDone,
                 fileName: node.rawStatement.fileName,
+                rawText: node.rawStatement.rawText,
+                proofText: node.rawProof.rawText !== node.rawStatement.rawText ? node.rawProof.rawText : undefined,
                 dependencies: node.dependencies.map(dep => ({ id: dep.id, type: dep.type }))
             };
         }

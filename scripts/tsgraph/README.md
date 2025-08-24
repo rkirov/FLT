@@ -61,16 +61,6 @@ The script automatically generates a self-contained HTML file with embedded data
 open build/dependency_graph.html
 ```
 
-Alternatively, for development or to use the standalone components:
-
-```bash
-# Start local server
-npm run serve
-
-# Open browser to http://localhost:8000
-open http://localhost:8000
-```
-
 ## LaTeX Format Requirements
 
 ### Block Structure
@@ -110,7 +100,7 @@ Proof of main result...
 - **Drag & Drop**: Move nodes to reorganize layout
 - **Zoom & Pan**: Mouse wheel to zoom, drag background to pan
 - **Tooltips**: Hover for detailed information
-- **File Upload**: Load different JSON files
+- **Click to View**: Click nodes to see raw LaTeX text with MathJax rendering
 
 ### Visual Coding
 - **Shapes**: 
@@ -123,7 +113,6 @@ Proof of main result...
 
 ### Controls
 - **Reset Zoom**: Center and reset view
-- **File Upload**: Load custom dependency graphs (optional)
 
 ## Output Examples
 
@@ -163,7 +152,6 @@ digraph DependencyGraph {
 ```
 ├── index.ts          # Main CLI tool
 ├── web.ts            # D3.js visualization 
-├── index.html        # Web interface template
 ├── package.json      # Dependencies & scripts
 ├── index.js          # Compiled CLI (generated)
 ├── web.js            # Compiled web code (generated)
